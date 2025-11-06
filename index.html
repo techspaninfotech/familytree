@@ -1,0 +1,74 @@
+<!-- INDEX.HTML START -->
+if(m.spouseId === id) m.spouseId = ''
+if(m.parentIds) m.parentIds = m.parentIds.filter(p=>p!==id)
+})
+saveAll(); renderTable()
+}
+}
+})
+
+
+form.addEventListener('submit', e=>{
+e.preventDefault()
+const id = fields.id.value.trim()
+if(!id){ alert('Provide ID'); return }
+const name = fields.name.value.trim()
+const parentIds = fields.parentIds.value.split(',').map(s=>s.trim()).filter(Boolean)
+const spouseId = fields.spouseId.value.trim() || ''
+const birth = fields.birth.value.trim() || ''
+const death = fields.death.value.trim() || ''
+const photo = fields.photo.value.trim() || ''
+const note = fields.note.value.trim() || ''
+
+
+const existingIndex = members.findIndex(m=>m.id===id)
+const memberObj = {id,name,parentIds,spouseId,birth,death,photo,note}
+if(existingIndex >= 0){ members[existingIndex] = memberObj } else { members.push(memberObj) }
+saveAll(); renderTable(); form.reset(); fields.id.disabled = false
+})
+
+
+document.getElementById('clearForm').addEventListener('click', ()=>{ form.reset(); fields.id.disabled=false })
+
+
+// Export
+document.getElementById('exportBtn').addEventListener('click', ()=>{
+const blob = new Blob([JSON.stringify(members,null,2)], {type:'application/json'})
+const url = URL.createObjectURL(blob)
+const a = document.createElement('a'); a.href = url; a.download = 'family-members.json'; a.click(); URL.revokeObjectURL(url)
+})
+
+
+// Import
+document.getElementById('importBtn').addEventListener('click', ()=>{
+const input = document.createElement('input'); input.type='file'; input.accept='application/json'
+input.onchange = e=>{
+const f = e.target.files[0]; if(!f) return
+const reader = new FileReader(); reader.onload = ()=>{
+try{
+const imported = JSON.parse(reader.result)
+if(!Array.isArray(imported)) throw new Error('Invalid JSON')
+// merge: override by id
+const byId = Object.fromEntries(members.map(m=>[m.id,m]))
+imported.forEach(it=>{ if(it.id) byId[it.id]=it })
+members = Object.values(byId)
+saveAll(); renderTable(); alert('Imported '+imported.length+' records')
+}catch(err){ alert('Import failed: '+err.message) }
+}
+reader.readAsText(f)
+}
+input.click()
+})
+
+
+// Reset all
+document.getElementById('resetBtn').addEventListener('click', ()=>{
+if(confirm('Clear ALL family data from this browser?')){ members = []; saveAll(); renderTable(); }
+})
+
+
+renderTable()
+</script>
+</body>
+</html>
+<!-- INDEX.HTML END -->
