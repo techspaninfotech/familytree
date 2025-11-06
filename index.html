@@ -1,71 +1,205 @@
 <!-- INDEX.HTML START -->
-if(m.spouseId === id) m.spouseId = ''
-if(m.parentIds) m.parentIds = m.parentIds.filter(p=>p!==id)
-})
-saveAll(); renderTable()
-}
-}
-})
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Family Tree Maker — Editor (index.html)</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;max-width:1000px;margin:24px auto;padding:12px}
+    h1{font-size:20px;margin-bottom:6px}
+    form{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px}
+    label{display:block;font-size:13px}
+    input,select,textarea{width:100%;padding:8px;border-radius:6px;border:1px solid #ddd}
+    .full{grid-column:1/-1}
+    button{padding:8px 12px;border-radius:8px;border:0;background:#2563eb;color:#fff;cursor:pointer}
+    .danger{background:#ef4444}
+    .muted{background:#f3f4f6;color:#111}
+    table{width:100%;border-collapse:collapse;margin-top:12px}
+    th,td{border:1px solid #eee;padding:8px;text-align:left}
+    .small{font-size:12px;color:#555}
+    .actions button{margin-right:6px}
+    .preview{width:56px;height:56px;border-radius:6px;object-fit:cover}
+    .row-actions{display:flex;gap:6px}
+  </style>
+</head>
+<body>
+  <h1>Family Tree Maker — Editor</h1>
+  <p class="small">Add family members here. Use a unique ID for each member. For parent, enter the parent's ID (comma separated for multiple). Example: <code>p1</code>, <code>p2</code>.</p>
 
+  <form id="memberForm">
+    <div>
+      <label for="id">Member ID (unique)</label>
+      <input id="id" required placeholder="e.g. m1 or john1970">
+    </div>
+    <div>
+      <label for="name">Full name</label>
+      <input id="name" required placeholder="Full name">
+    </div>
+    <div>
+      <label for="parentIds">Parent ID(s) (comma separated)</label>
+      <input id="parentIds" placeholder="e.g. p1,p2 or leave blank if root">
+    </div>
+    <div>
+      <label for="spouseId">Spouse ID (optional)</label>
+      <input id="spouseId" placeholder="e.g. s1">
+    </div>
+    <div>
+      <label for="birth">Born (year/date)</label>
+      <input id="birth" placeholder="e.g. 1970 or 1970-05-12">
+    </div>
+    <div>
+      <label for="death">Died (optional)</label>
+      <input id="death" placeholder="e.g. 2020">
+    </div>
+    <div class="full">
+      <label for="note">Note</label>
+      <textarea id="note" rows="2" placeholder="Short note, place, occupation"></textarea>
+    </div>
+    <div>
+      <label for="photo">Photo URL (optional)</label>
+      <input id="photo" placeholder="https://...jpg">
+    </div>
+    <div>
+      <label>&nbsp;</label>
+      <div style="display:flex;gap:8px">
+        <button id="saveBtn" type="submit">Save / Update</button>
+        <button id="clearForm" type="button" class="muted">Clear</button>
+      </div>
+    </div>
+  </form>
+
+  <div style="display:flex;gap:8px;margin-bottom:10px">
+    <button id="exportBtn" class="muted">Export JSON</button>
+    <button id="importBtn" class="muted">Import JSON</button>
+    <button id="resetBtn" class="danger">Clear All Data</button>
+    <a id="viewDashboard" href="dashboard.html"><button type="button">View Dashboard</button></a>
+  </div>
+
+  <table id="membersTable">
+    <thead>
+      <tr><th>Photo</th><th>ID</th><th>Name</th><th>Parents</th><th>Spouse</th><th>Born</th><th>Died</th><th>Note</th><th>Actions</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+<script>
+const STORAGE_KEY = 'familyMembers'
+let members = load()
+const form = document.getElementById('memberForm')
+const fields = {id:document.getElementById('id'), name:document.getElementById('name'), parentIds:document.getElementById('parentIds'), spouseId:document.getElementById('spouseId'), birth:document.getElementById('birth'), death:document.getElementById('death'), photo:document.getElementById('photo'), note:document.getElementById('note')}
+const tbody = document.querySelector('#membersTable tbody')
+
+function load(){
+  try{ return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') } catch(e){return []}
+}
+
+function saveAll(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(members)) }
+
+function renderTable(){
+  tbody.innerHTML = ''
+  if(members.length===0){ tbody.innerHTML = '<tr><td colspan="9" class="small">No members yet</td></tr>'; return }
+  members.forEach(m => {
+    const tr = document.createElement('tr')
+    tr.innerHTML = `
+      <td>${m.photo?`<img src="${escapeHtml(m.photo)}" class="preview" onerror="this.style.display='none'">`:''}</td>
+      <td>${escapeHtml(m.id)}</td>
+      <td>${escapeHtml(m.name)}</td>
+      <td>${escapeHtml((m.parentIds||[]).join(', '))}</td>
+      <td>${escapeHtml(m.spouseId||'')}</td>
+      <td>${escapeHtml(m.birth||'')}</td>
+      <td>${escapeHtml(m.death||'')}</td>
+      <td>${escapeHtml(m.note||'')}</td>
+      <td class="row-actions">
+        <button data-id="${escapeHtml(m.id)}" class="edit">Edit</button>
+        <button data-id="${escapeHtml(m.id)}" class="delete">Delete</button>
+      </td>`
+    tbody.appendChild(tr)
+  })
+}
+
+function escapeHtml(s){ if(!s && s !== 0) return ''; return String(s).replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;' }[c]||c)) }
+
+tbody.addEventListener('click', e=>{
+  if(e.target.matches('.edit')){
+    const id = e.target.dataset.id
+    const m = members.find(x=>x.id===id)
+    if(!m) return
+    fields.id.value = m.id; fields.id.disabled = true
+    fields.name.value = m.name || ''
+    fields.parentIds.value = (m.parentIds||[]).join(',')
+    fields.spouseId.value = m.spouseId||''
+    fields.birth.value = m.birth||''
+    fields.death.value = m.death||''
+    fields.photo.value = m.photo||''
+    fields.note.value = m.note||''
+  }
+  if(e.target.matches('.delete')){
+    const id = e.target.dataset.id
+    if(confirm('Delete member '+id+' ? This cannot be undone.')){
+      members = members.filter(x=>x.id!==id)
+      // also remove spouse references and parents references
+      members.forEach(m => {
+        if(m.spouseId === id) m.spouseId = ''
+        if(m.parentIds) m.parentIds = m.parentIds.filter(p=>p!==id)
+      })
+      saveAll(); renderTable()
+    }
+  }
+})
 
 form.addEventListener('submit', e=>{
-e.preventDefault()
-const id = fields.id.value.trim()
-if(!id){ alert('Provide ID'); return }
-const name = fields.name.value.trim()
-const parentIds = fields.parentIds.value.split(',').map(s=>s.trim()).filter(Boolean)
-const spouseId = fields.spouseId.value.trim() || ''
-const birth = fields.birth.value.trim() || ''
-const death = fields.death.value.trim() || ''
-const photo = fields.photo.value.trim() || ''
-const note = fields.note.value.trim() || ''
+  e.preventDefault()
+  const id = fields.id.value.trim()
+  if(!id){ alert('Provide ID'); return }
+  const name = fields.name.value.trim()
+  const parentIds = fields.parentIds.value.split(',').map(s=>s.trim()).filter(Boolean)
+  const spouseId = fields.spouseId.value.trim() || ''
+  const birth = fields.birth.value.trim() || ''
+  const death = fields.death.value.trim() || ''
+  const photo = fields.photo.value.trim() || ''
+  const note = fields.note.value.trim() || ''
 
-
-const existingIndex = members.findIndex(m=>m.id===id)
-const memberObj = {id,name,parentIds,spouseId,birth,death,photo,note}
-if(existingIndex >= 0){ members[existingIndex] = memberObj } else { members.push(memberObj) }
-saveAll(); renderTable(); form.reset(); fields.id.disabled = false
+  const existingIndex = members.findIndex(m=>m.id===id)
+  const memberObj = {id,name,parentIds,spouseId,birth,death,photo,note}
+  if(existingIndex >= 0){ members[existingIndex] = memberObj } else { members.push(memberObj) }
+  saveAll(); renderTable(); form.reset(); fields.id.disabled = false
 })
-
 
 document.getElementById('clearForm').addEventListener('click', ()=>{ form.reset(); fields.id.disabled=false })
 
-
 // Export
 document.getElementById('exportBtn').addEventListener('click', ()=>{
-const blob = new Blob([JSON.stringify(members,null,2)], {type:'application/json'})
-const url = URL.createObjectURL(blob)
-const a = document.createElement('a'); a.href = url; a.download = 'family-members.json'; a.click(); URL.revokeObjectURL(url)
+  const blob = new Blob([JSON.stringify(members,null,2)], {type:'application/json'})
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a'); a.href = url; a.download = 'family-members.json'; a.click(); URL.revokeObjectURL(url)
 })
-
 
 // Import
 document.getElementById('importBtn').addEventListener('click', ()=>{
-const input = document.createElement('input'); input.type='file'; input.accept='application/json'
-input.onchange = e=>{
-const f = e.target.files[0]; if(!f) return
-const reader = new FileReader(); reader.onload = ()=>{
-try{
-const imported = JSON.parse(reader.result)
-if(!Array.isArray(imported)) throw new Error('Invalid JSON')
-// merge: override by id
-const byId = Object.fromEntries(members.map(m=>[m.id,m]))
-imported.forEach(it=>{ if(it.id) byId[it.id]=it })
-members = Object.values(byId)
-saveAll(); renderTable(); alert('Imported '+imported.length+' records')
-}catch(err){ alert('Import failed: '+err.message) }
-}
-reader.readAsText(f)
-}
-input.click()
+  const input = document.createElement('input'); input.type='file'; input.accept='application/json'
+  input.onchange = e=>{
+    const f = e.target.files[0]; if(!f) return
+    const reader = new FileReader(); reader.onload = ()=>{
+      try{
+        const imported = JSON.parse(reader.result)
+        if(!Array.isArray(imported)) throw new Error('Invalid JSON')
+        // merge: override by id
+        const byId = Object.fromEntries(members.map(m=>[m.id,m]))
+        imported.forEach(it=>{ if(it.id) byId[it.id]=it })
+        members = Object.values(byId)
+        saveAll(); renderTable(); alert('Imported '+imported.length+' records')
+      }catch(err){ alert('Import failed: '+err.message) }
+    }
+    reader.readAsText(f)
+  }
+  input.click()
 })
-
 
 // Reset all
 document.getElementById('resetBtn').addEventListener('click', ()=>{
-if(confirm('Clear ALL family data from this browser?')){ members = []; saveAll(); renderTable(); }
+  if(confirm('Clear ALL family data from this browser?')){ members = []; saveAll(); renderTable(); }
 })
-
 
 renderTable()
 </script>
