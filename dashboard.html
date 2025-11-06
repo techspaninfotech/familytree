@@ -1,0 +1,64 @@
+<!-- DASHBOARD.HTML START -->
+if(!nodeC) return
+const children = nodeC.querySelector('.children')
+if(children) children.style.display = (children.style.display === 'none') ? '' : 'none'
+}
+})
+
+
+// Expand / Collapse All
+document.getElementById('collapseAll').addEventListener('click', ()=>{
+document.querySelectorAll('.children').forEach(c=>c.style.display = 'none')
+})
+document.getElementById('expandAll').addEventListener('click', ()=>{
+document.querySelectorAll('.children').forEach(c=>c.style.display = '')
+})
+
+
+// Search
+search.addEventListener('input', e=>{
+const q = e.target.value.trim().toLowerCase()
+applyFilter(q)
+})
+
+
+function applyFilter(q){
+if(!q){ document.querySelectorAll('.node').forEach(n=>n.style.opacity='1'); return }
+document.querySelectorAll('.node').forEach(n=>{
+const id = n.dataset.id || ''
+const name = n.querySelector('.title')?.textContent || ''
+if(name.toLowerCase().includes(q) || id.toLowerCase().includes(q)){
+n.style.opacity = '1'
+// show path to root
+showPathToRoot(id)
+} else {
+n.style.opacity = '0.15'
+}
+})
+}
+
+
+function showPathToRoot(id){
+// open all ancestors so the node is visible
+let current = id
+while(current){
+// find parent(s)
+const parents = (byId[current] && byId[current].parentIds) || []
+parents.forEach(p => {
+const parentNode = document.querySelector(`[data-id="${CSS.escape(p)}"]`)
+if(parentNode){
+const container = parentNode.closest('.nodeContainer')
+const children = container && container.querySelector('.children')
+if(children) children.style.display = ''
+}
+})
+current = parents[0] // keep walking up using first parent
+}
+}
+
+
+render()
+</script>
+</body>
+</html>
+<!-- DASHBOARD.HTML END -->
