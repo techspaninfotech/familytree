@@ -1,61 +1,174 @@
 <!-- DASHBOARD.HTML START -->
-if(!nodeC) return
-const children = nodeC.querySelector('.children')
-if(children) children.style.display = (children.style.display === 'none') ? '' : 'none'
-}
-})
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Family Tree — Dashboard (dashboard.html)</title>
+  <style>
+    :root{--card-bg:#fff}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;margin:12px;}
+    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+    .controls{display:flex;gap:8px}
+    button{padding:8px 10px;border-radius:8px;border:0;background:#2563eb;color:#fff;cursor:pointer}
+    .muted{background:#f3f4f6;color:#111}
+    .tree-wrap{overflow:auto;border:1px solid #eee;padding:12px;border-radius:8px;background:#fafafa}
+    .tree{display:flex;flex-direction:column;align-items:flex-start}
+    .node{display:inline-block;padding:8px;border-radius:8px;border:1px solid #ddd;background:var(--card-bg);min-width:120px;text-align:center}
+    .node .title{font-weight:600}
+    .node .meta{font-size:12px;color:#666}
+    .line{height:20px;border-left:1px solid #bbb;margin-left:calc(50% - 0.5px)}
+    .children{display:flex;gap:20px;margin-top:12px}
+    .nodeContainer{display:flex;flex-direction:column;align-items:center}
+    .spouse{font-size:12px;color:#333;margin-top:6px}
+    .controls input{padding:8px;border-radius:6px;border:1px solid #ddd}
+    .small{font-size:13px;color:#444}
+    .node img{width:56px;height:56px;border-radius:6px;object-fit:cover;margin-bottom:6px}
+    .toggle{cursor:pointer;opacity:0.9}
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h2 style="margin:0">Family Tree Dashboard</h2>
+      <div class="small">Data loaded from browser (index.html) — localStorage key: <code>familyMembers</code></div>
+    </div>
+    <div class="controls">
+      <input id="search" placeholder="Search name or id">
+      <button id="collapseAll" class="muted">Collapse All</button>
+      <button id="expandAll" class="muted">Expand All</button>
+      <a href="index.html"><button type="button">Open Editor</button></a>
+    </div>
+  </header>
 
+  <div class="tree-wrap" id="treeWrap">
+    <div id="treeRoot" class="tree"></div>
+  </div>
+
+<script>
+const STORAGE_KEY = 'familyMembers'
+let members = load()
+const treeRoot = document.getElementById('treeRoot')
+const search = document.getElementById('search')
+
+function load(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]') }catch(e){return []} }
+
+// Build map
+const byId = Object.fromEntries(members.map(m=>[m.id,m]))
+// ensure parentIds is array
+members.forEach(m=>{ m.parentIds = (m.parentIds||[]).filter(Boolean) })
+
+// Build children lists
+const childrenMap = {}
+members.forEach(m=>{ childrenMap[m.id]=[] })
+members.forEach(m=>{ (m.parentIds||[]).forEach(p=>{ if(childrenMap[p]) childrenMap[p].push(m.id) }) })
+
+// roots = members who have no parents or their parents not present
+const roots = members.filter(m => !(m.parentIds||[]).some(p=> byId[p]) )
+
+function buildSubtree(id){
+  const m = byId[id]
+  const container = document.createElement('div')
+  container.className = 'nodeContainer'
+  const node = document.createElement('div')
+  node.className = 'node'
+  node.dataset.id = id
+  node.innerHTML = `
+    ${m.photo?`<img src="${escapeHtml(m.photo)}" onerror="this.style.display='none'">`:''}
+    <div class="title">${escapeHtml(m.name)} <div style="font-size:11px;color:#666">(${escapeHtml(m.id)})</div></div>
+    <div class="meta">${escapeHtml(m.birth||'')} ${m.death? ' — '+escapeHtml(m.death):''}</div>
+    ${m.note?`<div class="meta">${escapeHtml(m.note)}</div>`:''}
+    ${m.spouseId?`<div class="spouse">Spouse: ${escapeHtml(m.spouseId)}${byId[m.spouseId]?` — ${escapeHtml(byId[m.spouseId].name)}`:''}</div>`:''}
+    <div style="margin-top:6px"><button class="toggle muted" data-id="${escapeHtml(id)}">Toggle</button></div>`
+  container.appendChild(node)
+
+  const kids = childrenMap[id] || []
+  if(kids.length){
+    const line = document.createElement('div'); line.className='line'
+    container.appendChild(line)
+    const childrenWrap = document.createElement('div'); childrenWrap.className='children'
+    kids.forEach(cid => {
+      const sub = buildSubtree(cid)
+      childrenWrap.appendChild(sub)
+    })
+    container.appendChild(childrenWrap)
+  }
+  return container
+}
+
+function render(filterText=''){
+  treeRoot.innerHTML = ''
+  if(members.length===0){ treeRoot.innerHTML = '<div class="small">No members found. Please open index.html to add members.</div>'; return }
+  const rootsToShow = roots.slice()
+  if(rootsToShow.length===0){ // fallback - show all who have no parent entry
+    members.forEach(m=>{ if(!(m.parentIds||[]).some(p=>byId[p])) rootsToShow.push(m) })
+  }
+  rootsToShow.forEach(r => {
+    const node = buildSubtree(r.id)
+    treeRoot.appendChild(node)
+  })
+  if(filterText) applyFilter(filterText)
+}
+
+function escapeHtml(s){ if(!s && s!==0) return ''; return String(s).replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;' }[c]||c)) }
+
+// Toggle collapse on click
+treeRoot.addEventListener('click', e=>{
+  if(e.target.matches('.toggle')){
+    const id = e.target.dataset.id
+    const nodeC = e.target.closest('.nodeContainer')
+    if(!nodeC) return
+    const children = nodeC.querySelector('.children')
+    if(children) children.style.display = (children.style.display === 'none') ? '' : 'none'
+  }
+})
 
 // Expand / Collapse All
 document.getElementById('collapseAll').addEventListener('click', ()=>{
-document.querySelectorAll('.children').forEach(c=>c.style.display = 'none')
+  document.querySelectorAll('.children').forEach(c=>c.style.display = 'none')
 })
 document.getElementById('expandAll').addEventListener('click', ()=>{
-document.querySelectorAll('.children').forEach(c=>c.style.display = '')
+  document.querySelectorAll('.children').forEach(c=>c.style.display = '')
 })
-
 
 // Search
 search.addEventListener('input', e=>{
-const q = e.target.value.trim().toLowerCase()
-applyFilter(q)
+  const q = e.target.value.trim().toLowerCase()
+  applyFilter(q)
 })
-
 
 function applyFilter(q){
-if(!q){ document.querySelectorAll('.node').forEach(n=>n.style.opacity='1'); return }
-document.querySelectorAll('.node').forEach(n=>{
-const id = n.dataset.id || ''
-const name = n.querySelector('.title')?.textContent || ''
-if(name.toLowerCase().includes(q) || id.toLowerCase().includes(q)){
-n.style.opacity = '1'
-// show path to root
-showPathToRoot(id)
-} else {
-n.style.opacity = '0.15'
+  if(!q){ document.querySelectorAll('.node').forEach(n=>n.style.opacity='1'); return }
+  document.querySelectorAll('.node').forEach(n=>{
+    const id = n.dataset.id || ''
+    const name = n.querySelector('.title')?.textContent || ''
+    if(name.toLowerCase().includes(q) || id.toLowerCase().includes(q)){
+      n.style.opacity = '1'
+      // show path to root
+      showPathToRoot(id)
+    } else {
+      n.style.opacity = '0.15'
+    }
+  })
 }
-})
-}
-
 
 function showPathToRoot(id){
-// open all ancestors so the node is visible
-let current = id
-while(current){
-// find parent(s)
-const parents = (byId[current] && byId[current].parentIds) || []
-parents.forEach(p => {
-const parentNode = document.querySelector(`[data-id="${CSS.escape(p)}"]`)
-if(parentNode){
-const container = parentNode.closest('.nodeContainer')
-const children = container && container.querySelector('.children')
-if(children) children.style.display = ''
+  // open all ancestors so the node is visible
+  let current = id
+  while(current){
+    // find parent(s)
+    const parents = (byId[current] && byId[current].parentIds) || []
+    parents.forEach(p => {
+      const parentNode = document.querySelector(`[data-id="${CSS.escape(p)}"]`)
+      if(parentNode){
+        const container = parentNode.closest('.nodeContainer')
+        const children = container && container.querySelector('.children')
+        if(children) children.style.display = ''
+      }
+    })
+    current = parents[0] // keep walking up using first parent
+  }
 }
-})
-current = parents[0] // keep walking up using first parent
-}
-}
-
 
 render()
 </script>
